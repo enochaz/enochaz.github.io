@@ -19,74 +19,123 @@
 <header class="site"><a class="name" href="/">enochaz</a><nav><a href="/articles/" aria-current="page">articles</a><a href="/projects/">projects</a><a href="/books/">books</a><a href="/contact/">contact</a></nav></header>
 <main>
 <article><h1>The Gap After a New Block</h1><p class="date">2026-11-20</p>
-<p>When a miner finds a block, every other miner on the network is suddenly working on something that no longer matters. Their current job builds on a tip that just became stale, and until they switch, any hash they find is most likely going to lose.</p>
-<p>So how long does that switch take? And what happens in between?</p>
-<p>I spent a couple of days measuring this on my own node, and looking at what miners on mainnet seem to be doing about it. This is what I found.</p>
-<h2>What happens when a new block arrives?</h2>
-<p>Most nodes today learn about a new block through compact block relay (BIP 152). Instead of sending the whole block, a peer sends the header plus short ids for the transactions in it. The idea is that we probably already have most of those transactions in our mempool, so we can rebuild the block locally.</p>
-<p>From the moment we see the header to the moment the block becomes our new tip, there are roughly four steps:</p>
+<p>When a miner finds a block, everyone else on the network is suddenly working on something that is not going to make it. Their current job builds on a tip that just went stale, and if they find a block before they switch, it will most likely lose the race.</p>
+<p>So how long does it actually take a node to switch? Where does that time go? And what are miners doing in the meantime?</p>
+<p>I wanted real numbers for this, so I spent a couple of days measuring it on my own node, and then looked at a year of mainnet blocks to see what miners seem to be doing about it. Let me take you through it.</p>
+
+<h2>How does a node learn about a new block?</h2>
+<p>Most nodes today get new blocks through compact block relay, described in BIP 152. Instead of sending the full block (which could be well over a megabyte), a peer sends a <code>cmpctblock</code> message containing:</p>
 <ul>
-<li><strong>fetch</strong>: getting the compact block itself, if the peer only announced it.</li>
-<li><strong>fill</strong>: matching the short ids against our mempool.</li>
-<li><strong>round trip</strong>: if some transactions are missing, asking the peer for them (getblocktxn) and waiting for the answer (blocktxn).</li>
-<li><strong>connect</strong>: validating the block and making it our tip.</li>
+<li>the 80 byte block header,</li>
+<li>a 6 byte short id for every transaction in the block,</li>
+<li>a few "prefilled" transactions the peer expects we don't have. Bitcoin Core always prefills the coinbase, since nobody has that in their mempool.</li>
 </ul>
-<p>Fill and connect are local work. Fetch and the round trip are network, and depend on how far away (in time) our peers are. That distance is the round trip time, or RTT, basically your ping.</p>
-<p>A miner getting templates from this node can only start on a full template for the new block after the last step. Everything before that is time spent hashing on the old tip.</p>
-<h2>What did I measure?</h2>
-<p>I turned on <code>logtimemicros</code> and <code>debug=cmpctblock</code> on my mainnet node and wrote a script that reads <code>debug.log</code> and splits every block into the four steps above. I left it running over 129 blocks (976408 to 976536).</p>
-<p>To be upfront about the setup, this node is a worst case. It is on 4G behind carrier grade NAT, so it can only make outbound connections, and its ping to peers was around 200 to 450 ms.</p>
-<p>Here is what it looked like, leaving out 12 blocks where my link stalled and 4 blocks right after a restart:</p>
-<pre><code>
-stage                         median     p90      max
+<p>The short ids are SipHash values keyed with the header and a nonce, so they are cheap to compute but cannot be precomputed by someone trying to cause collisions. When we receive the compact block, we go through our mempool (and a small pool of extra transactions Core keeps around, like recently replaced or orphaned ones) and match each short id to a transaction we already have.</p>
+<p>If every transaction matches, we have the whole block without downloading it. If some are missing, we send a <code>getblocktxn</code> with the indexes of the missing transactions, and the peer replies with a <code>blocktxn</code> containing them. That costs us one more round trip to that peer.</p>
+<p>There are also two modes a peer can be in:</p>
+<ul>
+<li><strong>Low bandwidth</strong>: the peer announces the block (with a <code>headers</code> or <code>inv</code> message), and we have to ask for the compact block with a <code>getdata</code>. That is a round trip before we even start.</li>
+<li><strong>High bandwidth</strong>: we asked the peer (with <code>sendcmpct</code>) to push compact blocks to us straight away, even before it has fully validated the block. Core picks up to 3 peers for this, usually the ones that gave us new blocks first recently.</li>
+</ul>
+<p>So in the best case, a high bandwidth peer pushes the compact block, our mempool has everything, and we can rebuild and validate the block with no extra round trips at all.</p>
+
+<h2>Where does the time go?</h2>
+<p>From the moment we see the header to the moment the block becomes our new tip, I split it into four stages:</p>
+<pre><code>header seen
+  |  fetch       (network)
+cmpctblock in
+  |  fill        (local)
+filled from mempool
+  |  round trip  (network)
+reconstructed
+  |  connect     (local)
+tip updated</code></pre>
+<ul>
+<li><strong>fetch</strong>: getting the compact block itself. This is roughly zero if a high bandwidth peer pushed it, otherwise it is a <code>getdata</code> round trip.</li>
+<li><strong>fill</strong>: matching the short ids against the mempool.</li>
+<li><strong>round trip</strong>: the <code>getblocktxn</code> / <code>blocktxn</code> exchange, only if transactions were missing.</li>
+<li><strong>connect</strong>: validating the block (scripts, UTXO updates and so on) and updating the tip.</li>
+</ul>
+<p>Fill and connect are local work. Fetch and the round trip depend on the network, mostly on the round trip time (RTT) to the peer, which is basically your ping, and a bit on bandwidth when the missing transactions are large.</p>
+<p>This matters for mining because a miner getting block templates from this node cannot get a full template on the new block until the last stage is done. Whatever it finds before then is built on the old tip.</p>
+
+<h2>How did I measure it?</h2>
+<p>Bitcoin Core already logs most of what we need. I turned on two options on my mainnet node:</p>
+<pre><code>logtimemicros=1
+debug=cmpctblock</code></pre>
+<p>The first gives microsecond timestamps in <code>debug.log</code>, the second logs each step of compact block handling. The line that does most of the work looks like this (a real one from my log, trimmed a bit):</p>
+<pre><code>[cmpctblock] Successfully reconstructed block 00000000000000000001da7c...
+with 1 txn prefilled, 557 txn from mempool (incl at least 9 from extra pool)
+and 2293 txn (1280704 bytes) requested</code></pre>
+<p>Then I wrote a Python script that walks the log, matches the "saw new header", "initializing", "initialized", "successfully reconstructed" and <code>UpdateTip</code> lines for each block, and works out the time spent in each stage. It also records whether the compact block came from a high bandwidth peer and how many transactions and bytes had to be requested.</p>
+<p>A couple of things it leaves out on purpose:</p>
+<ul>
+<li>blocks within 30 minutes of a restart, since the coins cache is cold and validation is a lot slower than normal,</li>
+<li>"link stalls", where a network stage took far longer than its size explains (more than 5x what it should take on my link, or over 10 seconds outright). For example, 2 kB taking 10 seconds is my connection dropping, not compact block relay being slow, while 1.4 MB taking 2.6 seconds is just a big round trip.</li>
+</ul>
+<p>I left it running over 129 blocks (976408 to 976536). The script and the raw data are in <a href="https://gist.github.com/enochaz/f13b96d16b05663417fe8c1f3c910820">this gist</a> if you want to run it on your own node.</p>
+<p>I should be upfront about the setup. My node is a worst case. It runs on a 4G connection behind carrier grade NAT, so it can only make outbound connections, and its ping to peers was somewhere between 200 and 450 ms during this time.</p>
+
+<h2>So what did it look like?</h2>
+<p>After leaving out 12 link stalls and 4 blocks right after a restart, this is what was left (113 blocks):</p>
+<pre><code>stage                         median     p90      max
 fetch after header  (network)  151 ms   556 ms   1.5 s
-round trip          (network)  276 ms   1.8 s    8.6 s
+round trip          (network)  276 ms   1.8 s    8.6 s   (85 blocks)
 fill from mempool   (local)      8 ms    10 ms    13 ms
 connect / validate  (local)     63 ms   107 ms   395 ms
-header -> tip total            512 ms   1.8 s    10.3 s
-</code></pre>
-<p>A few things stood out:</p>
-<ul>
-<li>75% of blocks (85 of 113) needed a round trip, so rebuilding the block from the mempool alone was the minority case.</li>
-<li>The local work was only around 70 ms. Almost all of the time was spent waiting on the network.</li>
-<li>The 12 stalled blocks took anywhere from 2.8 to 50 seconds. That is about 1 in 10 blocks.</li>
-</ul>
-<p>So on a link like mine, the gap is usually under a second, but multi-second gaps are not rare.</p>
+header -> tip total            512 ms   1.8 s    10.3 s</code></pre>
+<p>The first thing that stood out was how little of this is local. Filling from the mempool took under 15 ms every time, and validation was around 60 ms on a typical block. Together that is about 70 ms. Everything else, the other 400+ ms on a median block, is waiting on the network.</p>
+<p>The second thing was how often a round trip was needed. 85 of the 113 blocks (75%) were missing at least one transaction and needed a <code>getblocktxn</code>. Blocks that did not need one took 259 ms median from header to tip, blocks that did took 556 ms.</p>
+<p>Breaking down how many transactions those 85 blocks were missing:</p>
+<pre><code>missing txs     blocks
+1 - 5             46
+6 - 100           11
+101 - 1000        15
+over 1000         13</code></pre>
+<p>So over half of the round trips were for a handful of transactions, sometimes just one. But there is also a long tail where the block had hundreds or thousands of transactions my mempool had never seen. The worst one, block 976475, needed 6556 transactions (607 kB) fetched after the header, and the round trip alone took 2.2 seconds.</p>
+<p>High bandwidth mode did not save much here either. 17 blocks were pushed to me by a high bandwidth peer, which skips the fetch, but 14 of those still needed a round trip for missing transactions.</p>
+<p>And then there are the 12 stalls I left out, which took anywhere from 2.8 to 50 seconds from header to tip. That is close to 1 in 10 blocks. On a link like mine, multi second gaps are not rare at all.</p>
+
 <h2>But isn't that just a bad connection?</h2>
-<p>Partly, yes. If I model the same blocks as local time plus the number of round trips times the RTT, a node with a 50 ms RTT would see around 160 ms median and 500 ms at worst.</p>
-<p>But two things make it more than a bad connection.</p>
-<p>First, the round trips. Over half of them (46 of 85) were for just 1 to 5 missing transactions. That is not my link, that is my mempool not matching the miner's. And it is not just me: 0xB10C, who monitors this across the network, <a href="https://delvingbitcoin.org/t/1052/53">reported</a> that from mid July 2026 blocks that could be rebuilt without a round trip were hovering between 1% and 5%. That lasted until the unsolicited transaction chains being pushed to nodes <a href="https://delvingbitcoin.org/t/1052/63">stopped on 2026-10-18</a>.</p>
-<p>Second, links like mine are exactly what a lot of small miners have. Home miners, small pools, and miners building their own templates with Stratum v2 are more likely to be on a slow or unreliable connection than a large pool with servers next to each other.</p>
-<p>At 1 to 3 seconds per block, that is roughly 0.2% to 0.5% of their hashrate spent on a stale tip, since a block comes about every 600 seconds.</p>
+<p>Partly, yes, and I don't want to oversell it. To get a feel for what a better connected node would see, I modelled the same blocks as:</p>
+<pre><code>local time + round_trips x RTT + bytes x 8 / bandwidth</code></pre>
+<p>where <code>round_trips</code> counts the fetch (unless a high bandwidth peer pushed the block) and the <code>getblocktxn</code> exchange (if there was one), and <code>bytes</code> is the compact block plus the requested transactions. With 50 ms RTT and a fast link, that gives about 160 ms median and 500 ms at worst. It ignores TCP slow start, so for big transfers it is a lower bound, but it gives the right order of magnitude.</p>
+<p>So on a good connection the gap is mostly a few hundred milliseconds. But two things make this more than just my connection.</p>
+<p>The first is the round trips themselves. Missing transactions are not a property of my link, they mean my mempool did not match what the miner put in the block. And it is not just me. 0xB10C runs monitoring nodes that track this across the network, and <a href="https://delvingbitcoin.org/t/1052/53">reported</a> that from mid July 2026 the share of blocks that could be rebuilt without a round trip was hovering between 1% and 5%. That lasted until the unsolicited transaction chains being pushed to nodes <a href="https://delvingbitcoin.org/t/1052/63">stopped on 2026-10-18</a>. If the best connected nodes need a round trip on almost every block, then the gap is really RTT bound for everyone.</p>
+<p>The second is who actually runs links like mine. Home miners, small pools, and miners building their own templates with Stratum v2 job declaration are far more likely to be on a slow or unreliable connection than a large pool with servers next to each other in a data centre.</p>
+<p>A block comes about every 600 seconds, so a 1 to 3 second gap per block means roughly 0.2% to 0.5% of their hashrate is spent on a stale tip. That does not sound like much, but mining margins are thin, and it is a cost that falls mostly on the smaller miners.</p>
+
 <h2>What are miners doing about it today?</h2>
-<p>To get a picture of this, I looked at the last year of blocks (923849 to 976408). There were 97 empty blocks, blocks with only the coinbase transaction in them. For each block, I compared its header timestamp with its parent's:</p>
-<pre><code>
-gap to parent   empty blocks     all blocks
+<p>To see this from the outside, I looked at every block from 923849 to 976408, roughly a year. There were 97 empty blocks, meaning blocks with only the coinbase transaction in them. For each block, I compared its header timestamp with its parent's:</p>
+<pre><code>gap to parent   empty blocks     all blocks
 0-10s           20% (19/97)      1.1%
 0-30s           58% (56/97)      4.1%
-0-60s           76% (74/97)      8.1%
-</code></pre>
-<p>Empty blocks are roughly 9 to 17 times more likely than other blocks to come right after their parent.</p>
-<p>Why would that be? There are two common explanations:</p>
-<ul>
-<li><strong>Mining on the header</strong> (sometimes called spy mining). The pool starts on the new block as soon as it sees the header, before downloading or validating it. Since it does not know yet which transactions the parent included, the only safe thing to mine is an empty block.</li>
-<li><strong>An empty job while the full template is being built.</strong> Even after validating the block, building a new full template takes some time, so some pools send an empty job first and replace it shortly after.</li>
-</ul>
-<p>The data cannot tell these apart, and header timestamps are noisy since miners set them. Blocks with a timestamp earlier than their parent are left out of the table for that reason. But either way the takeaway is the same: miners already prefer to start right away on an empty block over waiting for a full one.</p>
+0-60s           76% (74/97)      8.1%</code></pre>
+<p>Empty blocks are roughly 9 to 17 times more likely than other blocks to show up right after their parent. Why would that be?</p>
+<p>One explanation is mining on headers, often called spy mining or SPV mining. The pool starts working on the next block as soon as it sees the new header, before it has downloaded or validated the block. Since it does not know yet which transactions the parent included, it cannot safely include any transactions of its own (they might already be in the parent, which would make the block invalid). So the only safe thing to mine is an empty block.</p>
+<p>The other explanation is more boring. Even after a pool has validated the new block, building a fresh full template takes some time: the node has to remove the confirmed transactions from the mempool, the pool calls <code>getblocktemplate</code>, and the new job has to get out to the miners. Some pools send an empty job straight away and replace it once the full template is ready.</p>
+<p>From the chain alone, you cannot tell these two apart. Header timestamps are also noisy since miners set them, and some blocks even have a timestamp earlier than their parent (I left those out of the table). But in both cases the behaviour is the same: miners prefer to start hashing right away on an empty block over waiting for a full one.</p>
+<p>Mining on unvalidated headers also has a history. In July 2015, shortly after BIP 66 activated, a miner produced an invalid block, and some large pools that were mining on headers without validating built on top of it. The result was a 6 block invalid fork. It is a good reminder that this needs to be done carefully, with a way to back out when the block turns out to be bad.</p>
+
 <h2>So what could Bitcoin Core do?</h2>
-<p>This is what <a href="https://github.com/bitcoin/bitcoin/issues/33756">bitcoin/bitcoin#33756</a> is about. Bitcoin Core's mining interface has a <code>waitNext()</code> call that gives a client like the Stratum v2 Template Provider a new template when something changes. The idea in the issue is to let it optionally return an empty template as soon as we see a valid header for a new block, before the block is downloaded and validated.</p>
-<p>A small first version of that could look like this:</p>
+<p>This is what <a href="https://github.com/bitcoin/bitcoin/issues/33756">bitcoin/bitcoin#33756</a> is about. Bitcoin Core has a mining interface that clients like the Stratum v2 Template Provider talk to over IPC. One of its calls, <code>waitNext()</code>, blocks until there is a better template than the one the client has (a new tip, or fees going up past a threshold) and then returns it. Options for the wait go in a <code>BlockWaitOptions</code> struct.</p>
+<p>The idea in the issue is to optionally have <code>waitNext()</code> return an empty template as soon as we have a valid header for a new block, before the block itself is downloaded and validated. Basically doing what pools already do, but inside Core, opt in, and with a clear way to back out.</p>
+<p>A small first version could look like this:</p>
 <ul>
-<li>Opt in only, off by default.</li>
-<li>Only an empty template, and only for a header that directly extends our validated tip.</li>
-<li>Only if the block has not connected within a short delay, so well connected nodes would rarely produce one.</li>
-<li>Replaced by a full template once the block connects, or by a template on the old tip if the block turns out invalid or never shows up.</li>
+<li>A new field in <code>BlockWaitOptions</code>, off by default, so only miners who ask for it get this behaviour.</li>
+<li>Only an empty template, and only for a header that directly extends our validated tip, so at most 1 block deep. Nothing during initial block download.</li>
+<li>Only if the block has not connected within a short delay after the header. On a well connected node the block usually connects in a couple of hundred milliseconds, so this would rarely kick in there.</li>
+<li>The next <code>waitNext()</code> call returns the full template once the block connects, or a template on the old tip if the block turns out invalid or never arrives.</li>
 </ul>
-<p>There are trade-offs. Mining on a header you have not validated means that, if the block turns out invalid, you briefly mined on top of something worthless. An invalid header still needs a full block's proof of work, so this is expensive to abuse, but it is still a risk the miner should choose to take. There is also the question of fees: an empty block gives up the fees. During the gap though, the alternative is mining on a tip that is already stale, and you cannot build a full block on the new tip until you have the parent's transactions anyway.</p>
-<p>This also is not competing with work that makes compact block relay itself better, like <a href="https://github.com/bitcoin/bitcoin/pull/35558">prefilling compact blocks</a>. Prefill should fix most of the small 1 to 5 transaction misses. What is left are the big misses (one block in my data needed 6556 transactions, 607 kB, fetched after the header) and link stalls, which prefill cannot cover.</p>
-<h2>What next?</h2>
-<p>I shared this data and the approach <a href="https://github.com/bitcoin/bitcoin/issues/33756#issuecomment-7005166558">on the issue</a>, and I am waiting to hear what others think about the direction.</p>
-<p>The scripts and raw data are in <a href="https://gist.github.com/enochaz/f13b96d16b05663417fe8c1f3c910820">this gist</a> if you want to check them or run them on your own node. I would be especially curious to see numbers from a better connected node.</p>
+<p>Some of the plumbing is already there. When a compact block comes in, its header goes through <code>ProcessNewBlockHeaders</code> before reconstruction even starts, and that calls <code>NotifyHeaderTip</code>, which fires the <code>headerTip</code> kernel notification whenever our best header changes. Right now that notification only goes to the GUI, so the template manager would need to listen for it (or for a new validation interface notification).</p>
+<p>The empty template itself is simple. It needs the new header's hash as the previous block, the next height, the difficulty target that follows from that header, a timestamp that satisfies the median time past rule, and a coinbase paying just the block subsidy, since there are no fees. None of that needs the mempool, so it could be built from the block index alone, without going through <code>BlockAssembler</code>'s transaction selection.</p>
+<p>There is also an existing guard worth mentioning. The template manager has a <code>CooldownIfHeadersAhead</code> step: when <code>createNewBlock()</code> is called and we already know a header ahead of our tip, it waits briefly for the block before returning a template. It deliberately does not wait long, because a miner could announce a header and then hold back the block to stall everyone else. A provisional template would need a timeout for the same reason.</p>
+
+<h2>What are the trade-offs?</h2>
+<p>The obvious one is mining on top of something you have not validated. If the block turns out invalid, any work in that window was wasted, and in the worst case you find a block on top of an invalid one, like in 2015. A few things help here. An invalid header still needs a full block's worth of proof of work, so it is expensive to produce on purpose. The template is only 1 block deep and is dropped as soon as the block fails. And backing off after a couple of invalid headers in a row would make repeated attempts pointless.</p>
+<p>The second one is fees. An empty block gives up all the fees a full block would have collected. But during the gap the alternative is not a full block on the new tip, because you cannot build one until you know the parent's transactions. The alternative is a full block on the old tip, which will most likely lose. So for the time it is actually used, an empty template is better than what the miner has.</p>
+<p>The third is the overlap with work that makes compact block relay itself better. <a href="https://github.com/bitcoin/bitcoin/pull/35558">Prefilling compact blocks</a> lets the sending peer include transactions it thinks we are missing, which should get rid of most of the small 1 to 5 transaction round trips I saw. I don't think these compete. Prefill shrinks the gap for most blocks, and an empty template covers what is left: the blocks with hundreds or thousands of missing transactions, and the link stalls, which prefill cannot fix.</p>
+<p>I shared these numbers and the approach on <a href="https://github.com/bitcoin/bitcoin/issues/33756#issuecomment-7005166558">the issue</a> as well. I'd be curious to see the same measurements from a better connected node, so if you run the script, let me know what you get.</p>
 <p>Scripts were written with help from an AI assistant; I reviewed the code and the results.</p>
 
 </article><a class="back" href="/articles/">← all articles</a>
