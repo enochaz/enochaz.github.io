@@ -1,5 +1,11 @@
 [
   {
+    "slug": "the-gap-after-a-new-block",
+    "title": "The Gap After a New Block",
+    "date": "2026-11-20",
+    "description": "How long a node takes to switch to a new block, what miners do in the meantime, and an idea for Bitcoin Core's mining interface."
+  },
+  {
     "slug": "making-sense-of-segwit",
     "title": "Making Sense of Segwit",
     "date": "2026-10-09",
