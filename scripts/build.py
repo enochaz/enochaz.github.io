@@ -3,6 +3,7 @@
 from pathlib import Path
 from html import escape as e
 import json
+import hashlib
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = 'https://enochaz.github.io'
@@ -11,6 +12,7 @@ EMAIL = 'enirox001@gmail.com'
 BOOKS = json.loads((ROOT / 'content/books.json').read_text())
 ARTICLES = json.loads((ROOT / 'content/articles.json').read_text())
 PAGES = []
+CSS_V = hashlib.sha256((ROOT / 'assets/style.css').read_bytes()).hexdigest()[:8]
 NAV = [('articles', '/articles/'), ('projects', '/projects/'), ('books', '/books/'), ('contact', '/contact/')]
 
 
@@ -31,14 +33,16 @@ def page(path, title, description, body, active=''):
   <meta property="og:url" content="{SITE}{path}">
   <link rel="canonical" href="{SITE}{path}">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v={CSS_V}">
 </head>
 <body>
-<header><a class="name" href="/">enochaz</a><nav>{nav}</nav></header>
+<div class="wrap">
+<header class="site"><a class="name" href="/">enochaz</a><nav>{nav}</nav></header>
 <main>
 {body}
 </main>
-<footer>Enoch Azariah<a href="{GITHUB}">github</a><a href="https://x.com/eedee__">x</a><a href="mailto:{EMAIL}">email</a></footer>
+<footer class="site"><span>© 2026 Enoch Azariah</span><nav><a href="{GITHUB}">github</a><a href="https://x.com/eedee__">x</a><a href="mailto:{EMAIL}">email</a></nav></footer>
+</div>
 </body>
 </html>
 '''
@@ -52,8 +56,8 @@ def page(path, title, description, body, active=''):
 def article_list(items):
     if not items:
         return '<p class="muted">Nothing here yet.</p>'
-    return '<ul class="list">' + ''.join(
-        f'<li><span class="date">{e(a["date"])}</span> <a href="/articles/{e(a["slug"])}/">{e(a["title"])}</a></li>' for a in items) + '</ul>'
+    return '<ul class="rows">' + ''.join(
+        f'<li><span class="date">{e(a["date"])}</span><a href="/articles/{e(a["slug"])}/">{e(a["title"])}</a><span class="desc">{e(a["description"])}</span></li>' for a in items) + '</ul>'
 
 
 def book_line(b):
@@ -61,20 +65,23 @@ def book_line(b):
 
 
 page('/', 'Enoch Azariah', 'Enoch Azariah (enochaz). I work on Bitcoin Core and sv2-tp.', f'''
+<div class="intro"><div>
 <h1>Hi, I'm Enoch</h1>
-<p>I'm a software engineer in Nigeria. I work on <a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a> and <a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>, mostly around mining, multiprocess and IPC, and fuzzing.</p>
+<p class="lead">I'm a software engineer in Nigeria. I work on <a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a> and <a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>, mostly around mining, multiprocess and IPC, and fuzzing.</p>
+</div><img src="https://avatars.githubusercontent.com/u/66912335?v=4&amp;s=192" alt="Enoch Azariah" width="96" height="96"></div>
 <p>A lot of my time goes into reading code, reviewing PRs and trying to figure out why things work the way they do.</p>
 <p>Before Bitcoin I did web and mobile work, mostly Flutter, TypeScript and Python. In 2023 I interned at <a href="https://www.blockchaincommons.com/">Blockchain Commons</a> and worked on the Esplora GUI. These days I'm getting better at C++ by working on Bitcoin Core.</p>
 <p>I write here sometimes, mostly about things I'm learning or working on.</p>
 <h2>Writing</h2>
 {article_list(ARTICLES[:5])}
 <h2>Working on</h2>
-<ul>
-<li><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a>, code, review and testing</li>
-<li><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>, the Stratum v2 Template Provider</li>
-<li><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess</a>, review and testing</li>
-<li><a href="{GITHUB}/btc-ipc">btc-ipc</a>, a Python IPC client I use to try out Bitcoin Core's interfaces</li>
+<ul class="rows">
+<li><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a><span class="desc">Code, review and testing.</span></li>
+<li><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a><span class="desc">The Stratum v2 Template Provider.</span></li>
+<li><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess</a><span class="desc">Review and testing.</span></li>
+<li><a href="{GITHUB}/btc-ipc">btc-ipc</a><span class="desc">A Python IPC client I use to try out Bitcoin Core's interfaces.</span></li>
 </ul>
+<p><a class="more" href="/projects/">more projects →</a></p>
 ''', '/')
 
 page('/projects/', 'Projects', 'Things Enoch Azariah is working on or has worked on.', f'''
@@ -97,7 +104,7 @@ page('/articles/', 'Articles', 'Articles by Enoch Azariah, mostly about Bitcoin.
 for a in ARTICLES:
     body = (ROOT / 'content/articles' / (a['slug'] + '.html')).read_text()
     page('/articles/' + a['slug'] + '/', a['title'], a['description'],
-         f'<h1>{e(a["title"])}</h1><p class="date">{e(a["date"])}</p>\n{body}\n<p><a href="/articles/">← all articles</a></p>', '/articles/')
+         f'<article><h1>{e(a["title"])}</h1><p class="date">{e(a["date"])}</p>\n{body}\n</article><a class="back" href="/articles/">← all articles</a>', '/articles/')
 
 reading = [b for b in BOOKS if b['status'] == 'Reading']
 finished = [b for b in BOOKS if b['status'] == 'Finished']
@@ -115,7 +122,7 @@ for b in BOOKS:
 <p class="muted">by {e(b["authors"])} · {e(b["status"].lower())}</p>
 {note}
 <p><a href="{e(b["url"], quote=True)}">About the book</a></p>
-<p><a href="/books/">← all books</a></p>
+<a class="back" href="/books/">← all books</a>
 ''', '/books/')
 
 page('/contact/', 'Contact', 'How to reach Enoch Azariah.', f'''
