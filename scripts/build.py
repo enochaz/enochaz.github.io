@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the personal pages using Python's standard library; leave coverage untouched."""
+"""Build the site with Python's standard library. Never touches coverage/."""
 from pathlib import Path
 from html import escape as e
 import json
@@ -7,137 +7,125 @@ import json
 ROOT = Path(__file__).resolve().parents[1]
 SITE = 'https://enochaz.github.io'
 GITHUB = 'https://github.com/enochaz'
+EMAIL = 'enirox001@gmail.com'
 BOOKS = json.loads((ROOT / 'content/books.json').read_text())
 ARTICLES = json.loads((ROOT / 'content/articles.json').read_text())
 PAGES = []
-NAV = [('Home', '/'), ('Articles', '/articles/'), ('Projects', '/projects/'), ('Bookshelf', '/books/'), ('Contact', '/contact/')]
+NAV = [('articles', '/articles/'), ('projects', '/projects/'), ('books', '/books/'), ('contact', '/contact/')]
 
-def page(path, title, description, body, active='/'):
+
+def page(path, title, description, body, active=''):
     nav = ''.join(f'<a href="{url}"' + (' aria-current="page"' if active == url else '') + f'>{name}</a>' for name, url in NAV)
+    full_title = 'enochaz' if path == '/' else f'{title} · enochaz'
     html = f'''<!doctype html>
-<html lang="en" data-theme="gruvbox">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{e(title)} · enirox</title>
+  <title>{e(full_title)}</title>
   <meta name="description" content="{e(description, quote=True)}">
   <meta name="author" content="Enoch Azariah">
-  <meta name="color-scheme" content="dark light">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="{e(title, quote=True)} · enirox">
+  <meta name="color-scheme" content="light dark">
+  <meta property="og:title" content="{e(full_title, quote=True)}">
   <meta property="og:description" content="{e(description, quote=True)}">
   <meta property="og:url" content="{SITE}{path}">
   <link rel="canonical" href="{SITE}{path}">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/style.css">
-  <script src="/assets/theme.js"></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <div class="shell">
-    <header class="site-header"><a class="wordmark" href="/" aria-label="enirox home">enirox<span>.</span></a><nav aria-label="Main navigation">{nav}</nav></header>
-    <main id="main">{body}</main>
-    <footer class="site-footer">
-      <span>© 2026 Enoch Azariah</span>
-      <div class="footer-links"><a href="{GITHUB}">GitHub</a><a href="https://x.com/eedee__">X</a><a href="mailto:enirox001@gmail.com">Email</a><a href="{GITHUB}/enochaz.github.io">Source</a></div>
-      <div class="theme-control"><label for="theme">Colour theme</label><select id="theme"><option value="gruvbox">Gruvbox</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
-    </footer>
-  </div>
+<header><a class="name" href="/">enochaz</a><nav>{nav}</nav></header>
+<main>
+{body}
+</main>
+<footer>Enoch Azariah<a href="{GITHUB}">github</a><a href="https://x.com/eedee__">x</a><a href="mailto:{EMAIL}">email</a></footer>
 </body>
 </html>
 '''
-    dest = ROOT / (path.strip('/') + '/index.html' if path.endswith('/') and path != '/' else 'index.html' if path == '/' else path.lstrip('/'))
+    dest = ROOT / ('index.html' if path == '/' else path.strip('/') + '/index.html' if path.endswith('/') else path.lstrip('/'))
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(html)
-    if path != "/404.html": PAGES.append(path)
+    if path != '/404.html':
+        PAGES.append(path)
 
-def heading(number, title):
-    return f'<div class="section-heading"><span class="section-index">{number}</span><h2>{title}</h2></div>'
 
-def row(title, url, description, meta=''):
-    return f'<li>{f"<span class=\"meta\">{e(meta)}</span>" if meta else ""}<a class="row-title" href="{e(url, quote=True)}">{e(title)} <span aria-hidden="true">↗</span></a><p class="row-desc">{e(description)}</p></li>'
-
-def cover(book):
-    return f'<div class="book-cover cover-{e(book["slug"])}" aria-hidden="true"><small>{e(book["category"])}</small><div><strong>{e(book["title"])}</strong><span class="cover-rule"></span></div><small>{e(book["authors"])}</small></div>'
-
-def book_card(book):
-    return f'<article class="book"><a class="book-link" href="/books/{e(book["slug"])}/">{cover(book)}<span class="book-name">{e(book["title"])}</span></a><p class="book-author">{e(book["authors"])}</p><span class="status">{e(book["status"])}</span></article>'
-
-def article_rows(items):
+def article_list(items):
     if not items:
-        return '<p class="muted">No articles published yet.</p>'
-    return '<ul class="rows">' + ''.join(row(a['title'], '/articles/' + a['slug'] + '/', a['description'], a['date']) for a in items) + '</ul>'
+        return '<p class="muted">Nothing here yet.</p>'
+    return '<ul class="list">' + ''.join(
+        f'<li><span class="date">{e(a["date"])}</span> <a href="/articles/{e(a["slug"])}/">{e(a["title"])}</a></li>' for a in items) + '</ul>'
 
-def shelf():
-    sections = []
-    for status, title in [('Reading', 'Currently reading'), ('Finished', 'Read')]:
-        books = [b for b in BOOKS if b['status'] == status]
-        if books:
-            sections.append('<section>' + heading(f'{len(sections)+1:02}', title) + '<div class="book-grid">' + ''.join(book_card(b) for b in books) + '</div></section>')
-    return ''.join(sections)
 
-page('/', 'Enoch Azariah', 'Software engineer contributing to Bitcoin Core and sv2-tp. Projects, articles, and a bookshelf.', f'''
-<section class="intro">
-  <p class="eyebrow">Software engineer · Bitcoin open source</p>
-  <img class="portrait" src="https://avatars.githubusercontent.com/u/66912335?v=4&amp;s=216" alt="Enoch Azariah’s GitHub profile picture" width="108" height="108">
-  <h1>Enoch Azariah</h1>
-  <p class="subtitle">I also go by <a href="{GITHUB}">enirox</a>.</p>
-  <p>I’m a software engineer based in Nigeria, contributing to <a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a> and <a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>. My interests are in mining improvements, multiprocess architecture, and IPC fuzzing.</p>
-  <p>I spend a lot of my time reading code, reviewing changes, and trying to understand why things work the way they do. Lately, that has meant digging into IPC and libmultiprocess, and improving fuzz coverage.</p>
-  <p>My background is in web and mobile development, particularly Flutter, TypeScript, and Python. I also worked on the Esplora GUI during my 2023 internship at <a href="https://www.blockchaincommons.com/">Blockchain Commons</a>. These days, I’m deepening my C++ through Bitcoin open-source work.</p>
-  <div class="intro-links"><a href="{GITHUB}">GitHub ↗</a><a href="mailto:enirox001@gmail.com">Get in touch ↗</a></div>
-</section>
-<section>{heading('01', 'Current work')}
-<ul class="rows">
-{row('Bitcoin Core', 'https://github.com/bitcoin/bitcoin', 'Contributions, code review, and testing, with interests in mining improvements, multiprocess architecture, and IPC fuzzing.', 'C++ · Python')}
-{row('sv2-tp', 'https://github.com/stratum-mining/sv2-tp', 'Contributing to the Stratum v2 Template Provider.', 'C++ · Mining')}
-{row('libmultiprocess', 'https://github.com/bitcoin-core/libmultiprocess', 'Review and testing around Bitcoin Core’s multiprocess communication.', 'C++ · IPC')}
-{row('btc-ipc', f'{GITHUB}/btc-ipc', 'An experimental Python IPC client and reference indexer for exploring Bitcoin Core’s external interfaces.', 'Python · Cap’n Proto · SQLite')}
-</ul><a class="more" href="/projects/">All projects →</a>
-</section>
-<section>{heading('02', 'Articles')}{article_rows(ARTICLES[:3])}<a class="more" href="/articles/">All articles →</a></section>
-<section>{heading('03', 'On my bookshelf')}<p>Books I’ve read and books I’m still working through.</p><div class="book-grid">{''.join(book_card(b) for b in BOOKS)}</div><a class="more" href="/books/">Visit the bookshelf →</a></section>
-''')
+def book_line(b):
+    return f'<li><a href="/books/{e(b["slug"])}/">{e(b["title"])}</a> <span class="muted">by {e(b["authors"])}</span></li>'
 
-page('/projects/', 'Projects', 'Current and earlier projects by Enoch Azariah.', f'''
-<p class="eyebrow">Code, experiments & contributions</p><h1>Projects</h1>
-<p class="subtitle page-intro">Most of my open-source work is on <a href="{GITHUB}">GitHub</a>. Here are a few things I’ve been working on.</p>
-<section>{heading('01', 'Current')}
-<article class="project"><h3><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core ↗</a></h3><p>Contributing code, reviewing pull requests, and testing changes. My interests are in mining improvements, multiprocess architecture, and IPC fuzzing.</p><a class="more" href="https://github.com/bitcoin/bitcoin/pulls?q=is%3Apr+author%3Aenochaz">My pull requests →</a></article>
-<article class="project"><h3><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp ↗</a></h3><p>Contributing to the Stratum v2 Template Provider, with an interest in mining improvements and its integration with Bitcoin Core.</p><div class="tags"><span class="tag">C++</span><span class="tag">Mining</span><span class="tag">Stratum v2</span></div></article>
-<article class="project"><h3><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess ↗</a></h3><p>Review and testing around the library behind Bitcoin Core’s multiprocess communication.</p></article>
-<article class="project"><h3><a href="{GITHUB}/btc-ipc">btc-ipc ↗</a></h3><p>A reusable Python IPC client with a reference indexer, benchmarks, and tests. The indexer tracks block metadata, ordered transaction IDs, and active-chain membership, including reorg reconciliation. It is an experiment for evaluating capabilities and their semantics; using a method successfully does not establish a stable API.</p><div class="tags"><span class="tag">Python</span><span class="tag">Cap’n Proto</span><span class="tag">SQLite</span></div></article>
-</section>
-<section>{heading('02', 'Previous')}<ul class="rows">{row('Esplora GUI', f'{GITHUB}/esplora', 'Earlier work on the Bitcoin block explorer interface, including my Blockchain Commons internship.', 'Web · Bitcoin')}{row('Web & mobile projects', f'{GITHUB}?tab=repositories', 'Earlier projects and experiments with Flutter, TypeScript, and Python.', 'Flutter · TypeScript · Python')}</ul></section>
+
+page('/', 'Enoch Azariah', 'Enoch Azariah (enochaz). I work on Bitcoin Core and sv2-tp.', f'''
+<h1>Hi, I'm Enoch</h1>
+<p>I'm a software engineer in Nigeria. I work on <a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a> and <a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>, mostly around mining, multiprocess and IPC, and fuzzing.</p>
+<p>A lot of my time goes into reading code, reviewing PRs and trying to figure out why things work the way they do.</p>
+<p>Before Bitcoin I did web and mobile work, mostly Flutter, TypeScript and Python. In 2023 I interned at <a href="https://www.blockchaincommons.com/">Blockchain Commons</a> and worked on the Esplora GUI. These days I'm getting better at C++ by working on Bitcoin Core.</p>
+<p>I write here sometimes, mostly about things I'm learning or working on.</p>
+<h2>Writing</h2>
+{article_list(ARTICLES[:5])}
+<h2>Working on</h2>
+<ul>
+<li><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a>, code, review and testing</li>
+<li><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>, the Stratum v2 Template Provider</li>
+<li><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess</a>, review and testing</li>
+<li><a href="{GITHUB}/btc-ipc">btc-ipc</a>, a Python IPC client I use to try out Bitcoin Core's interfaces</li>
+</ul>
+''', '/')
+
+page('/projects/', 'Projects', 'Things Enoch Azariah is working on or has worked on.', f'''
+<h1>Projects</h1>
+<p>Most of what I do is on <a href="{GITHUB}">GitHub</a>.</p>
+<h2>Now</h2>
+<p><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a>. Writing code, reviewing PRs and testing changes, mostly around mining, multiprocess and IPC fuzzing. <a href="https://github.com/bitcoin/bitcoin/pulls?q=is%3Apr+author%3Aenochaz">My PRs</a>.</p>
+<p><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>. The Stratum v2 Template Provider, and how it talks to Bitcoin Core.</p>
+<p><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess</a>. Review and testing on the library behind Bitcoin Core's multiprocess setup.</p>
+<p><a href="{GITHUB}/btc-ipc">btc-ipc</a>. A Python IPC client with a small indexer, benchmarks and tests. The indexer tracks blocks, transaction ids and which blocks are on the active chain, including reorgs. It's an experiment for seeing what the interfaces can do, so a method working there doesn't mean it's a stable API.</p>
+<h2>Before</h2>
+<p><a href="{GITHUB}/esplora">Esplora GUI</a>. Work on the block explorer frontend, from my Blockchain Commons internship.</p>
+<p><a href="{GITHUB}?tab=repositories">Older stuff</a>. Web and mobile projects in Flutter, TypeScript and Python.</p>
 ''', '/projects/')
 
-page('/articles/', 'Articles', 'Articles by Enoch Azariah about Bitcoin and software engineering.', f'''
-<p class="eyebrow">Writing</p><h1>Articles</h1>
-<p class="subtitle page-intro">My articles on Bitcoin, software engineering, and things I’m learning.</p>
-{article_rows(ARTICLES)}
+page('/articles/', 'Articles', 'Articles by Enoch Azariah, mostly about Bitcoin.', f'''
+<h1>Articles</h1>
+{article_list(ARTICLES)}
 ''', '/articles/')
-for article in ARTICLES:
-    body_path = ROOT / 'content/articles' / (article['slug'] + '.html')
-    page('/articles/' + article['slug'] + '/', article['title'], article['description'],
-         '<a class="back" href="/articles/">← All articles</a><h1>' + e(article['title']) + '</h1><p class="meta">' + e(article['date']) + '</p><article class="article-body">' + body_path.read_text() + '</article>', '/articles/')
+for a in ARTICLES:
+    body = (ROOT / 'content/articles' / (a['slug'] + '.html')).read_text()
+    page('/articles/' + a['slug'] + '/', a['title'], a['description'],
+         f'<h1>{e(a["title"])}</h1><p class="date">{e(a["date"])}</p>\n{body}\n<p><a href="/articles/">← all articles</a></p>', '/articles/')
 
-page('/books/', 'Bookshelf', 'Books Enoch Azariah is reading, with reading status and personal notes.', f'''
-<p class="eyebrow">Away from the code editor</p><h1>Bookshelf</h1>
-<p class="subtitle page-intro">A small record of what I’m reading, with notes along the way.</p>
-{shelf()}
+reading = [b for b in BOOKS if b['status'] == 'Reading']
+finished = [b for b in BOOKS if b['status'] == 'Finished']
+page('/books/', 'Books', 'Books Enoch Azariah is reading or has read.', f'''
+<h1>Books</h1>
+<h2>Reading</h2>
+<ul>{''.join(book_line(b) for b in reading)}</ul>
+<h2>Read</h2>
+<ul>{''.join(book_line(b) for b in finished)}</ul>
 ''', '/books/')
-for book in BOOKS:
-    page(f'/books/{book["slug"]}/', book['title'], book.get('note') or book['title'] + ' — ' + book['status'] + '.', f'''
-<a class="back" href="/books/">← Back to the bookshelf</a>
-<h1>{e(book['title'])}</h1><p class="subtitle">{e(book['authors'])}</p>
-<div class="book-detail">{cover(book)}<div><span class="status">{e(book['status'])}</span>{("<h2>Reading notes</h2><p>" + e(book["note"]) + "</p>") if book.get("note") else ""}<p class="small">{e(book['category'])}</p><a class="more" href="{e(book['url'], quote=True)}">About the book ↗</a></div></div>
+for b in BOOKS:
+    note = f'<p>{e(b["note"])}</p>' if b.get('note') else ''
+    page(f'/books/{b["slug"]}/', b['title'], b.get('note') or f'{b["title"]} by {b["authors"]}.', f'''
+<h1>{e(b["title"])}</h1>
+<p class="muted">by {e(b["authors"])} · {e(b["status"].lower())}</p>
+{note}
+<p><a href="{e(b["url"], quote=True)}">About the book</a></p>
+<p><a href="/books/">← all books</a></p>
 ''', '/books/')
 
-page('/contact/', 'Contact', 'Contact Enoch Azariah about software engineering and Bitcoin open-source work.', f'''
-<p class="eyebrow">Say hello</p><h1>Contact</h1>
-<p class="subtitle page-intro">You can reach me by email, find my work on GitHub, or follow me on X.</p>
-<dl class="contact-list"><div><dt>Email</dt><dd><a href="mailto:enirox001@gmail.com">enirox001@gmail.com</a></dd></div><div><dt>GitHub</dt><dd><a href="{GITHUB}">@enochaz ↗</a></dd></div><div><dt>X</dt><dd><a href="https://x.com/eedee__">@eedee__ ↗</a></dd></div></dl>
+page('/contact/', 'Contact', 'How to reach Enoch Azariah.', f'''
+<h1>Contact</h1>
+<p>Email is the best way to reach me: <a href="mailto:{EMAIL}">{EMAIL}</a>.</p>
+<p>I'm also <a href="{GITHUB}">enochaz</a> on GitHub and <a href="https://x.com/eedee__">@eedee__</a> on X.</p>
 ''', '/contact/')
-page('/404.html', 'Page not found', 'This page could not be found.', '<p class="eyebrow">404</p><h1>This page wandered off.</h1><p>The link may be out of date. You can head back to the homepage or browse my articles.</p><div class="intro-links"><a href="/">← Home</a><a href="/articles/">Articles →</a></div>', '')
-(ROOT / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + ''.join('  <url><loc>' + SITE + path + '</loc></url>\n' for path in PAGES) + '</urlset>\n')
-print(f'Built {len(PAGES) + 1} pages. Existing coverage files were not modified.')
+
+page('/404.html', 'Not found', 'Page not found.', '<h1>Not found</h1><p>That page doesn\'t exist, or it moved. <a href="/">Go home</a>.</p>')
+
+(ROOT / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                                  + ''.join(f'  <url><loc>{SITE}{p}</loc></url>\n' for p in PAGES) + '</urlset>\n')
+print(f'Built {len(PAGES) + 1} pages. coverage/ not touched.')

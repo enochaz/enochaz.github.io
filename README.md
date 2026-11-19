@@ -1,12 +1,11 @@
-# enirox’s personal website
+# enochaz.github.io
 
 A small, static GitHub Pages site. Live at https://enochaz.github.io/.
 
 ## Editing
 
 The source for page content and the shared layout is `scripts/build.py`. The
-bookshelf is maintained in `content/books.json`. Styling and theme behaviour
-live in `assets/`. No packages, framework, or Jekyll installation are required.
+bookshelf is maintained in `content/books.json`. Styling lives in `assets/style.css`. No packages, framework, or Jekyll installation are required.
 
 After editing, use Python 3.12 or newer:
 
@@ -24,24 +23,11 @@ To preview locally:
 python3 -m http.server 8000
 ```
 
-Visit http://localhost:8000/. Content and navigation work without JavaScript;
-JavaScript only controls the saved colour theme. Fonts are local system fonts.
+Visit http://localhost:8000/.
 
-## Bookshelf
+## Books
 
-Each book has a unique URL-safe `slug`, a title, authors, a reading status,
-category, optional personal note, and book URL. Add actual reading entries to
-`content/books.json`, then run the build. Book artwork is an original typographic
-representation, not a reproduction of the publisher’s cover.
-
-## Design references
-
-- https://ludwigabap.com/ — Gruvbox palette, restrained typography and text-first layout.
-- https://ismaelsadeeq.github.io/ — personal introduction and a bookshelf with reading status.
-- https://achow101.com/ — articles, contact, and current/previous project sections.
-
-Implementation is original. The site does not copy another person’s biography,
-book reviews, reading history, or proprietary fonts. Articles are authored here; review notebooks are not imported.
+Books live in `content/books.json` (slug, title, authors, status `Reading` or `Finished`, optional note, url).
 
 ## Publishing your own articles
 
