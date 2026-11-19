@@ -1,6 +1,6 @@
 # enirox’s personal website
 
-A small, static GitHub Pages site. Live at https://enirox001.github.io/.
+A small, static GitHub Pages site. Live at https://enochaz.github.io/.
 
 ## Editing
 

@@ -5,8 +5,8 @@ from html import escape as e
 import json
 
 ROOT = Path(__file__).resolve().parents[1]
-SITE = 'https://enirox001.github.io'
-GITHUB = 'https://github.com/enirox001'
+SITE = 'https://enochaz.github.io'
+GITHUB = 'https://github.com/enochaz'
 BOOKS = json.loads((ROOT / 'content/books.json').read_text())
 ARTICLES = json.loads((ROOT / 'content/articles.json').read_text())
 PAGES = []
@@ -39,7 +39,7 @@ def page(path, title, description, body, active='/'):
     <main id="main">{body}</main>
     <footer class="site-footer">
       <span>© 2026 Enoch Azariah</span>
-      <div class="footer-links"><a href="{GITHUB}">GitHub</a><a href="https://x.com/eedee__">X</a><a href="mailto:enirox001@gmail.com">Email</a><a href="{GITHUB}/enirox001.github.io">Source</a></div>
+      <div class="footer-links"><a href="{GITHUB}">GitHub</a><a href="https://x.com/eedee__">X</a><a href="mailto:enirox001@gmail.com">Email</a><a href="{GITHUB}/enochaz.github.io">Source</a></div>
       <div class="theme-control"><label for="theme">Colour theme</label><select id="theme"><option value="gruvbox">Gruvbox</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
     </footer>
   </div>
@@ -103,7 +103,7 @@ page('/projects/', 'Projects', 'Current and earlier projects by Enoch Azariah.',
 <p class="eyebrow">Code, experiments & contributions</p><h1>Projects</h1>
 <p class="subtitle page-intro">Most of my open-source work is on <a href="{GITHUB}">GitHub</a>. Here are a few things I’ve been working on.</p>
 <section>{heading('01', 'Current')}
-<article class="project"><h3><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core ↗</a></h3><p>Contributing code, reviewing pull requests, and testing changes. My interests are in mining improvements, multiprocess architecture, and IPC fuzzing.</p><a class="more" href="https://github.com/bitcoin/bitcoin/pulls?q=is%3Apr+author%3Aenirox001">My pull requests →</a></article>
+<article class="project"><h3><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core ↗</a></h3><p>Contributing code, reviewing pull requests, and testing changes. My interests are in mining improvements, multiprocess architecture, and IPC fuzzing.</p><a class="more" href="https://github.com/bitcoin/bitcoin/pulls?q=is%3Apr+author%3Aenochaz">My pull requests →</a></article>
 <article class="project"><h3><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp ↗</a></h3><p>Contributing to the Stratum v2 Template Provider, with an interest in mining improvements and its integration with Bitcoin Core.</p><div class="tags"><span class="tag">C++</span><span class="tag">Mining</span><span class="tag">Stratum v2</span></div></article>
 <article class="project"><h3><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess ↗</a></h3><p>Review and testing around the library behind Bitcoin Core’s multiprocess communication.</p></article>
 <article class="project"><h3><a href="{GITHUB}/btc-ipc">btc-ipc ↗</a></h3><p>A reusable Python IPC client with a reference indexer, benchmarks, and tests. The indexer tracks block metadata, ordered transaction IDs, and active-chain membership, including reorg reconciliation. It is an experiment for evaluating capabilities and their semantics; using a method successfully does not establish a stable API.</p><div class="tags"><span class="tag">Python</span><span class="tag">Cap’n Proto</span><span class="tag">SQLite</span></div></article>
@@ -136,7 +136,7 @@ for book in BOOKS:
 page('/contact/', 'Contact', 'Contact Enoch Azariah about software engineering and Bitcoin open-source work.', f'''
 <p class="eyebrow">Say hello</p><h1>Contact</h1>
 <p class="subtitle page-intro">You can reach me by email, find my work on GitHub, or follow me on X.</p>
-<dl class="contact-list"><div><dt>Email</dt><dd><a href="mailto:enirox001@gmail.com">enirox001@gmail.com</a></dd></div><div><dt>GitHub</dt><dd><a href="{GITHUB}">@enirox001 ↗</a></dd></div><div><dt>X</dt><dd><a href="https://x.com/eedee__">@eedee__ ↗</a></dd></div></dl>
+<dl class="contact-list"><div><dt>Email</dt><dd><a href="mailto:enirox001@gmail.com">enirox001@gmail.com</a></dd></div><div><dt>GitHub</dt><dd><a href="{GITHUB}">@enochaz ↗</a></dd></div><div><dt>X</dt><dd><a href="https://x.com/eedee__">@eedee__ ↗</a></dd></div></dl>
 ''', '/contact/')
 page('/404.html', 'Page not found', 'This page could not be found.', '<p class="eyebrow">404</p><h1>This page wandered off.</h1><p>The link may be out of date. You can head back to the homepage or browse my articles.</p><div class="intro-links"><a href="/">← Home</a><a href="/articles/">Articles →</a></div>', '')
 (ROOT / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + ''.join('  <url><loc>' + SITE + path + '</loc></url>\n' for path in PAGES) + '</urlset>\n')
