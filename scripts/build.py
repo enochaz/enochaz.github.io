@@ -57,7 +57,7 @@ def article_list(items):
     if not items:
         return '<p class="muted">Nothing here yet.</p>'
     return '<ul class="rows">' + ''.join(
-        f'<li><span class="date">{e(a["date"])}</span><a href="/articles/{e(a["slug"])}/">{e(a["title"])}</a><span class="desc">{e(a["description"])}</span></li>' for a in items) + '</ul>'
+        f'<li><div class="top"><a href="/articles/{e(a["slug"])}/">{e(a["title"])}</a><span class="date">{e(a["date"])}</span></div><span class="desc">{e(a["description"])}</span></li>' for a in items) + '</ul>'
 
 
 def book_line(b):
