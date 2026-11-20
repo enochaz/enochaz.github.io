@@ -13,7 +13,7 @@ BOOKS = json.loads((ROOT / 'content/books.json').read_text())
 ARTICLES = json.loads((ROOT / 'content/articles.json').read_text())
 PAGES = []
 CSS_V = hashlib.sha256((ROOT / 'assets/style.css').read_bytes()).hexdigest()[:8]
-NAV = [('articles', '/'), ('projects', '/projects/'), ('books', '/books/'), ('contact', '/contact/')]
+NAV = [('projects', '/projects/'), ('books', '/books/'), ('contact', '/contact/')]
 
 
 def page(path, title, description, body, active=''):
@@ -65,7 +65,6 @@ def book_line(b):
 
 
 page('/', 'Articles', 'Articles by Enoch Azariah (enochaz), mostly about Bitcoin.', f'''
-<h1>Articles</h1>
 {article_list(ARTICLES)}
 ''', '/')
 
