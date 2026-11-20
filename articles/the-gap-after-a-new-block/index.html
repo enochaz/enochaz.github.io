@@ -136,7 +136,17 @@ over 1000         13</code></pre>
 <p>The second one is fees. An empty block gives up all the fees a full block would have collected. But during the gap the alternative is not a full block on the new tip, because you cannot build one until you know the parent's transactions. The alternative is a full block on the old tip, which will most likely lose. So for the time it is actually used, an empty template is better than what the miner has.</p>
 <p>The third is the overlap with work that makes compact block relay itself better. <a href="https://github.com/bitcoin/bitcoin/pull/35558">Prefilling compact blocks</a> lets the sending peer include transactions it thinks we are missing, which should get rid of most of the small 1 to 5 transaction round trips I saw. I don't think these compete. Prefill shrinks the gap for most blocks, and an empty template covers what is left: the blocks with hundreds or thousands of missing transactions, and the link stalls, which prefill cannot fix.</p>
 <p>I shared these numbers and the approach on <a href="https://github.com/bitcoin/bitcoin/issues/33756#issuecomment-7005166558">the issue</a> as well. I'd be curious to see the same measurements from a better connected node, so if you run the script, let me know what you get.</p>
-<p>Scripts were written with help from an AI assistant; I reviewed the code and the results.</p>
+
+<h2>References</h2>
+<ul>
+<li><a href="https://github.com/bitcoin/bips/blob/master/bip-0152.mediawiki">BIP 152: Compact Block Relay</a></li>
+<li><a href="https://github.com/bitcoin/bitcoin/issues/33756">bitcoin/bitcoin#33756: Header-only support for waitNext()</a>, and <a href="https://github.com/bitcoin/bitcoin/issues/33756#issuecomment-7005166558">my comment with this data</a></li>
+<li><a href="https://github.com/bitcoin/bitcoin/pull/35558">bitcoin/bitcoin#35558: p2p: Prefill compact blocks</a></li>
+<li><a href="https://delvingbitcoin.org/t/1052">Stats on compact block reconstructions</a>, Delving Bitcoin, in particular posts <a href="https://delvingbitcoin.org/t/1052/53">53</a> and <a href="https://delvingbitcoin.org/t/1052/63">63</a> by 0xB10C</li>
+<li><a href="https://bitcoin.org/en/alert/2015-07-04-spv-mining">July 2015 chain forks</a>, bitcoin.org alert on the BIP 66 / SPV mining fork</li>
+<li>Bitcoin Core source: <a href="https://github.com/bitcoin/bitcoin/blob/master/src/interfaces/mining.h">src/interfaces/mining.h</a> (<code>waitNext()</code>), <a href="https://github.com/bitcoin/bitcoin/blob/master/src/node/block_template_manager.h">src/node/block_template_manager.h</a> (<code>CooldownIfHeadersAhead</code>)</li>
+<li><a href="https://gist.github.com/enochaz/f13b96d16b05663417fe8c1f3c910820">Scripts and raw data used in this article</a></li>
+</ul>
 
 </article><a class="back" href="/">← all articles</a>
 </main>
