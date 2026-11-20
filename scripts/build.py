@@ -13,7 +13,7 @@ BOOKS = json.loads((ROOT / 'content/books.json').read_text())
 ARTICLES = json.loads((ROOT / 'content/articles.json').read_text())
 PAGES = []
 CSS_V = hashlib.sha256((ROOT / 'assets/style.css').read_bytes()).hexdigest()[:8]
-NAV = [('articles', '/articles/'), ('projects', '/projects/'), ('books', '/books/'), ('contact', '/contact/')]
+NAV = [('articles', '/'), ('projects', '/projects/'), ('books', '/books/'), ('contact', '/contact/')]
 
 
 def page(path, title, description, body, active=''):
@@ -64,47 +64,33 @@ def book_line(b):
     return f'<li><a href="/books/{e(b["slug"])}/">{e(b["title"])}</a> <span class="muted">by {e(b["authors"])}</span></li>'
 
 
-page('/', 'Enoch Azariah', 'Enoch Azariah (enochaz). I work on Bitcoin Core and sv2-tp.', f'''
-<div class="intro"><div>
-<h1>Hi, I'm Enoch</h1>
-<p class="lead">I'm a software engineer in Nigeria. I work on <a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a> and <a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>, mostly around mining, multiprocess and IPC, and fuzzing.</p>
-</div><img src="https://avatars.githubusercontent.com/u/66912335?v=4&amp;s=192" alt="Enoch Azariah" width="96" height="96"></div>
-<p>A lot of my time goes into reading code, reviewing PRs and trying to figure out why things work the way they do.</p>
-<p>Before Bitcoin I did web and mobile work, mostly Flutter, TypeScript and Python. In 2023 I interned at <a href="https://www.blockchaincommons.com/">Blockchain Commons</a> and worked on the Esplora GUI. These days I'm getting better at C++ by working on Bitcoin Core.</p>
-<p>I write here sometimes, mostly about things I'm learning or working on.</p>
-<h2>Writing</h2>
-{article_list(ARTICLES[:5])}
-<h2>Working on</h2>
-<ul class="rows">
-<li><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a><span class="desc">Code, review and testing.</span></li>
-<li><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a><span class="desc">The Stratum v2 Template Provider.</span></li>
-<li><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess</a><span class="desc">Review and testing.</span></li>
-<li><a href="{GITHUB}/btc-ipc">btc-ipc</a><span class="desc">A Python IPC client I use to try out Bitcoin Core's interfaces.</span></li>
-</ul>
-<p><a class="more" href="/projects/">more projects →</a></p>
-''', '/')
-
-page('/projects/', 'Projects', 'Things Enoch Azariah is working on or has worked on.', f'''
-<h1>Projects</h1>
-<p>Most of what I do is on <a href="{GITHUB}">GitHub</a>.</p>
-<h2>Now</h2>
-<p><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a>. Writing code, reviewing PRs and testing changes, mostly around mining, multiprocess and IPC fuzzing. <a href="https://github.com/bitcoin/bitcoin/pulls?q=is%3Apr+author%3Aenochaz">My PRs</a>.</p>
-<p><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a>. The Stratum v2 Template Provider, and how it talks to Bitcoin Core.</p>
-<p><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess</a>. Review and testing on the library behind Bitcoin Core's multiprocess setup.</p>
-<p><a href="{GITHUB}/btc-ipc">btc-ipc</a>. A Python IPC client with a small indexer, benchmarks and tests. The indexer tracks blocks, transaction ids and which blocks are on the active chain, including reorgs. It's an experiment for seeing what the interfaces can do, so a method working there doesn't mean it's a stable API.</p>
-<h2>Before</h2>
-<p><a href="{GITHUB}/esplora">Esplora GUI</a>. Work on the block explorer frontend, from my Blockchain Commons internship.</p>
-<p><a href="{GITHUB}?tab=repositories">Older stuff</a>. Web and mobile projects in Flutter, TypeScript and Python.</p>
-''', '/projects/')
-
-page('/articles/', 'Articles', 'Articles by Enoch Azariah, mostly about Bitcoin.', f'''
+page('/', 'Articles', 'Articles by Enoch Azariah (enochaz), mostly about Bitcoin.', f'''
 <h1>Articles</h1>
 {article_list(ARTICLES)}
-''', '/articles/')
+''', '/')
+
+page('/projects/', 'Projects', 'Things Enoch Azariah works on.', f'''
+<h1>Projects</h1>
+<h2>Now</h2>
+<ul>
+<li><a href="https://github.com/bitcoin/bitcoin">Bitcoin Core</a> <span class="muted">· mining, multiprocess, IPC fuzzing (<a href="https://github.com/bitcoin/bitcoin/pulls?q=is%3Apr+author%3Aenochaz">my PRs</a>)</span></li>
+<li><a href="https://github.com/stratum-mining/sv2-tp">sv2-tp</a> <span class="muted">· Stratum v2 Template Provider</span></li>
+<li><a href="https://github.com/bitcoin-core/libmultiprocess">libmultiprocess</a> <span class="muted">· review and testing</span></li>
+<li><a href="{GITHUB}/btc-ipc">btc-ipc</a> <span class="muted">· Python IPC client for trying out Bitcoin Core's interfaces</span></li>
+</ul>
+<h2>Before</h2>
+<ul>
+<li><a href="{GITHUB}/esplora">Esplora GUI</a> <span class="muted">· Blockchain Commons internship, 2023</span></li>
+<li><a href="{GITHUB}?tab=repositories">Older projects</a> <span class="muted">· web and mobile, Flutter, TypeScript, Python</span></li>
+</ul>
+''', '/projects/')
+
+# /articles/ used to be the list; send old links to the homepage.
+(ROOT / 'articles/index.html').write_text('<!doctype html><meta charset="utf-8"><title>enochaz</title><link rel="canonical" href="' + SITE + '/"><meta http-equiv="refresh" content="0; url=/"><a href="/">Articles</a>\n')
 for a in ARTICLES:
     body = (ROOT / 'content/articles' / (a['slug'] + '.html')).read_text()
     page('/articles/' + a['slug'] + '/', a['title'], a['description'],
-         f'<article><h1>{e(a["title"])}</h1><p class="date">{e(a["date"])}</p>\n{body}\n</article><a class="back" href="/articles/">← all articles</a>', '/articles/')
+         f'<article><h1>{e(a["title"])}</h1><p class="date">{e(a["date"])}</p>\n{body}\n</article><a class="back" href="/">← all articles</a>', '/')
 
 reading = [b for b in BOOKS if b['status'] == 'Reading']
 finished = [b for b in BOOKS if b['status'] == 'Finished']
@@ -131,7 +117,7 @@ page('/contact/', 'Contact', 'How to reach Enoch Azariah.', f'''
 <p>I'm also <a href="{GITHUB}">enochaz</a> on GitHub and <a href="https://x.com/eedee__">@eedee__</a> on X.</p>
 ''', '/contact/')
 
-page('/404.html', 'Not found', 'Page not found.', '<h1>Not found</h1><p>That page doesn\'t exist, or it moved. <a href="/">Go home</a>.</p>')
+page('/404.html', 'Not found', 'Page not found.', '<h1>Not found</h1><p>That page doesn\'t exist, or it moved. <a href="/">Back to the articles</a>.</p>')
 
 (ROOT / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                                   + ''.join(f'  <url><loc>{SITE}{p}</loc></url>\n' for p in PAGES) + '</urlset>\n')

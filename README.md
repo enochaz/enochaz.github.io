@@ -35,5 +35,5 @@ Add an entry to `content/articles.json` with `slug`, `title`, `date`
 (`YYYY-MM-DD`), and `description`. Put the article body in
 `content/articles/<slug>.html`, using ordinary HTML paragraphs and headings.
 Run `python3 scripts/build.py` and commit the source and generated pages.
-Keep the list in newest-first order. The homepage shows its first three entries.
+Keep the list in newest-first order. The homepage is the article list.
 The list starts empty until you publish your own writing.
